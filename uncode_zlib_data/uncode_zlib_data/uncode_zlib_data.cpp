@@ -27,9 +27,56 @@ void out_help()
 
 }
 
+//遍历文件夹
+void find(char * lpPath,bool uncode)
+{
+	char szFind[MAX_PATH], szFile[MAX_PATH],szFindDirName[MAX_PATH];
+	WIN32_FIND_DATA FindFileData;
+	strcpy(szFind, lpPath);
+	strcat(szFind, "\\*.*"); 
+	HANDLE hFind = ::FindFirstFile(szFind, &FindFileData);
+	if (INVALID_HANDLE_VALUE == hFind)
+		return;
+	while (TRUE)
+	{
+		if (FindFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+		{
+			if (FindFileData.cFileName[0] != '.')
+			{
+				strcpy(szFile, lpPath);
+				strcat(szFile, "\\");
+				strcat(szFile, FindFileData.cFileName);
+				find(szFile, uncode);
+			}
+		}
+		else
+		{
+			strcpy(szFindDirName, lpPath);
+			strcat(szFindDirName, "\\");
+			strcat(szFindDirName, FindFileData.cFileName);
+			if (uncode)
+			{
+				loadfile(szFindDirName);
+				uncompressData(szFindDirName);
+				
+			}
+			else
+			{
+				loadfile(szFindDirName);
+				compressData(szFindDirName);
+			}
+			
+			
+		}
+		if (!FindNextFile(hFind, &FindFileData))
+			break;
+	}
+}
+
 
 int main(int argc, char * argv[])
 {
+
 	switch (argc)
 	{
 	case 1:
@@ -51,15 +98,12 @@ int main(int argc, char * argv[])
 		if (!strcmp(argv[1], "/c"))
 		{
 			printf("compress data ");
-			loadfile(argv[2]);
-			compressData(argv[2]);
-
+			find(argv[2],false);
 		}
 		else if (!strcmp(argv[1], "/u"))
 		{
 			printf("uncompress data ");
-			loadfile(argv[2]);
-			uncompressData(argv[2]);
+			find(argv[2], true);
 		}
 		break;
 	default:
@@ -79,7 +123,8 @@ int uncompressData(char *loadFileName)
 	uLong tlen = lSize * 10;
 	if ((de_text = (char*)malloc(sizeof(char)*lSize * 10)) == NULL)
 	{
-		printf("no enough memory!\n");
+		printf("no enough memory: ");
+		printf("%s\n", loadFileName);
 		return -1;
 	}
 
@@ -96,7 +141,8 @@ int uncompressData(char *loadFileName)
 	//Z_MEM_ERROR    (-4)
 	//Z_BUF_ERROR    (-5)
 	//Z_VERSION_ERROR (-6)
-		printf("uncompress failed!\n");
+		printf("uncompress failed: ");
+		printf("%s\n", loadFileName);
 		return -1;
 	}
 
@@ -105,16 +151,31 @@ int uncompressData(char *loadFileName)
 	char outFile[MAX_PATH];
 	memset(outFile, 0, sizeof(outFile));
 	//拼接字符串输出
-	char str1[]= "uncompress_";
-	strcat_s(outFile, strlen(str1) + 1, str1);
-	int len2 = strlen(outFile) + strlen(loadFileName) + 1;
-	strcat_s(outFile, len2, loadFileName);
+	char str1[]= "_uncompress";
+
+	strcat_s(outFile, strlen(loadFileName) + 1, loadFileName);
+	int len2 = strlen(outFile) + strlen(str1) + 1;
+	strcat_s(outFile, len2, str1);
 	
 	p2file = fopen(outFile, "wb");
+	if (p2file == NULL)
+	{
+		printf("create file failed: ");
+		printf("%s\n", loadFileName);
+		if (de_text != NULL)
+		{
+			free(de_text);
+			de_text = NULL;
+		}
+		return -1;
+	}
 	int a = fwrite(de_text, tlen, 1, p2file);
 	fclose(p2file);
 	/* 打印结果，并释放内存 */
-	printf("succeed");
+	printf("succeed: ");
+	printf("%s", loadFileName);
+	printf(">>>>");
+	printf("%s\n", outFile);
 	if (de_text != NULL)
 	{
 		free(de_text);
@@ -130,14 +191,17 @@ int compressData(char *loadFileName)
 	uLong tlen = compressBound(lSize);
 	if ((de_text = (char*)malloc(sizeof(char)*tlen)) == NULL)
 	{
-		printf("no enough memory!\n");
+		printf("no enough memory: ");
+		printf("%s\n", loadFileName);
 		return -1;
 	}
 	
 	/* 压缩 */
 	if (compress((Bytef *)de_text, &tlen, (Bytef *)buffer, tlen) != Z_OK)
 	{
-		printf("compress failed!\n");
+		
+		printf("compress failed: ");
+		printf("%s\n", loadFileName);
 		return -1;
 	}
 
@@ -147,16 +211,30 @@ int compressData(char *loadFileName)
 	char outFile[MAX_PATH];
 	memset(outFile, 0, sizeof(outFile));
 	//拼接字符串输出
-	char str1[] = "compress_";
-	strcat_s(outFile, strlen(str1) + 1, str1);
-	int len2 = strlen(outFile) + strlen(loadFileName) + 1;
-	strcat_s(outFile, len2, loadFileName);
+	char str1[] = "_compress";
+	strcat_s(outFile, strlen(loadFileName) + 1, loadFileName);
+	int len2 = strlen(outFile) + strlen(str1) + 1;
+	strcat_s(outFile, len2, str1);
 
 	p2file = fopen(outFile, "wb");
+	if (p2file == NULL)
+	{
+		printf("create file failed: ");
+		printf("%s\n", loadFileName);
+		if (de_text != NULL)
+		{
+			free(de_text);
+			de_text = NULL;
+		}
+		return -1;
+	}
 	int a = fwrite(de_text, tlen, 1, p2file);
 	fclose(p2file);
 	/* 打印结果，并释放内存 */
-	printf("succeed");
+	printf("succeed: ");
+	printf("%s", loadFileName);
+	printf(" >>>> ");
+	printf("%s\n", outFile);
 	if (de_text != NULL)
 	{
 		free(de_text);
